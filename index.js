@@ -88,13 +88,13 @@ function poissonDiscSampler(width, height, radius) {
 }
 
 function main() {
-  const width = 1024;
-  const height = 1024;
+  const width = 1000;
+  const height = 1000;
   const svg = d3.select('body').append('svg')
     .attr('width', width)
     .attr('height', height);
 
-  const sampler = poissonDiscSampler(width, height, 40);
+  const sampler = poissonDiscSampler(width, height, 20);
   const sites = [];
   while (true) {
     const next = sampler();
@@ -105,7 +105,7 @@ function main() {
   }
 
   const delauney = d3.voronoi()
-    .extent([[-1, -1], [width + 1, height + 1]])
+    .extent([[-100, -100], [width, height]])
     .triangles(sites);
 
   const centroids = delauney
@@ -130,9 +130,9 @@ function main() {
   function addHill() {
     var handled = new Map ();
     let startPoint = randomElement(mesh);
-    let amount = 0.9;
+    let amount = 50 + Math.random() * 100;
     function iteration(points, amount) {
-      if (amount < 0.001) {
+      if (amount < 0.5) {
         return;
       }
 
@@ -142,11 +142,12 @@ function main() {
       }
 
       for(const s of points) {
-        s.height += amount;
+        const mod = Math.random() * 0.5 + 1.1 - 0.5;
+        s.height += mod * amount;
         next = next.concat(s.neighbors.filter(y => !handled.has(y.id) && next.indexOf(y) === -1));
       }
 
-      iteration(next, amount * 0.75);
+      iteration(next, amount * 0.85);
     }
 
     iteration([startPoint], amount);
@@ -158,6 +159,38 @@ function main() {
   addHill();
   addHill();
   addHill();
+  addHill();
+  addHill();
+  addHill();
+
+  function generateDensityData() {
+    const densityData = [];
+    for(const m of mesh) {
+      let minX = 100000,minY = 100000,maxX = 0,maxY = 0;
+      m.polygon.forEach(p => {
+        if (p[0] < minX) minX = p[0]
+        if (p[1] < minY) minY = p[1]
+        if (p[0] > maxX) maxX = p[0]
+        if (p[1] > maxY) maxY = p[1]
+      });
+      let area = Math.abs(d3.polygonArea(m.polygon));
+      for(let i = 0; i < (m.height * area / 1000); i++) {
+        let point;
+        do {
+          point = [Math.random() * (maxX-minX) + minX, Math.random() * (maxY-minY) + minY];
+        }
+        while (!d3.polygonContains(m.polygon, point));
+        densityData.push(point);
+      }
+    }
+    return densityData;
+  }
+
+  const densityData = generateDensityData();
+
+  let contours = d3.contourDensity()
+    .size([width, height])
+    .thresholds(d3.range(100).map(x => x * 0.2))(densityData);
   
   /*svg.append('g')
     .selectAll('.data-border')
@@ -168,14 +201,45 @@ function main() {
     .attr('fill', 'none')
     .attr('stroke', 'black');*/
 
-  svg.append('g')
+  /*svg.append('g')
     .selectAll('.data-border')
     .data(mesh)
     .enter()
     .append('path')
     .attr('d', d => `M${d.polygon.join('L')}Z`)
-    .attr('fill', d => `rgba(0,0,0,${1 - d.height})`);
-    //.attr('stroke', 'green');
+    .attr('fill', d => `rgba(0,0,0,${1 - d.height / 100})`)
+    //.attr('fill', 'white')
+    .attr('stroke', 'black');*/
+
+  /*svg.append('g')
+    .selectAll('.data-border')
+    .data(densityData)
+    .enter()
+    .append('circle')
+    .attr('r', 1)
+    .attr('cx', d => d[0])
+    .attr('cy', d => d[1])
+    .attr('fill', 'green');*/
+
+  var xLines = [];
+  var yLines = [];
+  var randomX = Math.random() * 220;
+  var randomY = Math.random() * 220;
+  for (var i = 0; i < 5; i++) {
+    xLines.push(220 * i + randomX);
+    yLines.push(220 * i + randomY);
+  }
+
+
+  svg.append('g')
+    .selectAll('.data-border')
+    .data(contours)
+    .enter()
+    .append('path')
+    .attr('d', d3.geoPath())
+    .attr('stroke', '#f68263')
+    .attr('stroke-width', (d,i) => i % 5 === 0 ? 2 : 1)
+    .attr('fill', 'none');
 
   /*svg.append('g')
     .selectAll('.data-point')
@@ -196,6 +260,27 @@ function main() {
     .attr('cx', d => d[0])
     .attr('cy', d => d[1])
     .attr('fill', 'blue');*/
+
+  svg.append('g')
+    .selectAll('.horizontal-grid')
+    .data(xLines)
+    .enter()
+    .append('path')
+    .attr('d', d => `M ${d} 0 V ${width} Z`)
+    .attr('stroke', 'rgba(19,122,223,0.5)');
+  svg.append('g')
+    .selectAll('.vertical-grid')
+    .data(yLines)
+    .enter()
+    .append('path')
+    .attr('d', d => `M 0 ${d} H ${height} Z`)
+    .attr('stroke', 'rgba(19,122,223,0.5)');
+  
+  svg.append('g')
+    .append('path')
+    .attr('d', 'M 100 100 H 900 V 900 H 100 Z')
+    .attr('stroke', 'black')
+    .attr('fill', 'none');
 }
 
 main();
